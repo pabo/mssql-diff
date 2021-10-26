@@ -31,7 +31,7 @@ Options:
 ## Example
 
 ```
-$ npx mssql-diff -P '$uper$ecurepa$$word' -d 'my_database_name'
+$ mssql-diff -U 'my_username' -P '$uper$ecurepa$$word' -d 'my_database_name'
 
 First db snapshot taken. Take some action in the app that will affect the database before taking the next snapshot.
 [Enter] to take next snapshot...
