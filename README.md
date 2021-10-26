@@ -5,10 +5,16 @@ What's that functionality in your app **actually do** to the database? Where do 
 
 This util will connect to your mssql database, take a snapshot, and wait for your signal. Meanwhile, you go through some workflow in your app. Then you signal this util and it takes another snapshot of your database and presents you with a sensible diff of what changed.
 
+## Installation
+
+```
+$ npm install -g mssql-diff
+```
+
 ## Usage
 
 ```
-$ npx mssql-diff --help
+$ mssql-diff --help
 
 Options:
       --help       Show help                                           [boolean]
