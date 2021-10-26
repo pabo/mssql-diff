@@ -1,0 +1,24 @@
+{
+  "name": "mssql-diff",
+  "version": "1.0.0",
+  "description": "Command line database diffing tool for MSSQL",
+  "keywords": [
+    "mssql",
+    "database",
+    "db",
+    "diff"
+  ],
+  "main": "cli.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Brett Schellenberg <brett.schellenberg@gmail.com> https://github.com/pabo",
+  "homepage": "https://github.com/pabo/mssql-diff#readme",
+  "license": "ISC",
+  "dependencies": {
+    "deep-diff": "^1.0.2",
+    "mssql": "^7.2.1",
+    "yargs": "^17.2.1"
+  },
+  "bin": "./cli.js"
+}
