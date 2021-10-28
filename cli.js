@@ -37,6 +37,17 @@ const argv = yargs(hideBin(process.argv))
     type: 'string',
     description: 'tenant name'
   })
+  .option('tables', {
+    alias: 'b',
+    type: 'string',
+    description: 'only snapshot these tables'
+  })
+  .option('order-by-column', {
+    alias: 'o',
+    type: 'string',
+    default: '',
+    description: 'ORDER BY this column to guarantee result order which should minimize diffs. Any table not containing this column will be silently ignored.'
+  })
   .option('filter', {
     alias: 'f',
     type: 'boolean',
@@ -57,9 +68,8 @@ const rl = readline.createInterface({
 	output: process.stdout
  });
 
-
 const getAllTableNames = async () => {
-        return sql.query(`
+        const result = await sql.query(`
 		SELECT
 			TABLE_NAME
 		FROM
@@ -69,6 +79,10 @@ const getAllTableNames = async () => {
 			AND TABLE_TYPE = 'BASE TABLE'
 		ORDER BY
 			TABLE_NAME`);
+
+	return result.recordset
+		.map(tableRecord => tableRecord.TABLE_NAME)
+		.filter(tableName => tableName !== '__UpgradeSyncRoot__');
 }
 
 const connect = async () => {
@@ -77,27 +91,32 @@ const connect = async () => {
 }
 
 const tableSnapshot = async (tableName) => {
-	const fullTableName = argv.tenant ? `[${argv.tenant}].[${tableName}]` : tableName;
-        return sql.query(`select * from ${fullTableName}`);
+	const orderByClause = argv['order-by-column'] ? `ORDER BY ${argv['order-by-column']}` : '';
+
+	try {
+		const fullTableName = argv.tenant ? `[${argv.tenant}].[${tableName}]` : tableName;
+        	// const results = await sql.query(`select * from ${fullTableName} ORDER BY Id`);
+        	const results = await sql.query(`select * from ${fullTableName} ${orderByClause}`);
+		return results;
+	}
+	catch (error) {
+		return null;
+	}
 }
 
 const dbSnapshot = async (tables) => {
 	const dbSnapshot = {};
 
-	await Promise.all(tables.recordset
-		.map(tableRecord => tableRecord.TABLE_NAME)
-		.filter(tableName => tableName !== '__UpgradeSyncRoot__')
-		.map(async tableName => {
-			dbSnapshot[tableName] = await tableSnapshot(tableName)
-		})
-	);
+	await Promise.all(tables.map(async tableName => {
+		dbSnapshot[tableName] = await tableSnapshot(tableName)
+	}));
 
 	return dbSnapshot;
 }
 
 const collapsePath = path => {
 	const collapsedPath = path.filter(p => p !== 'recordset').join(".");
-	return collapsedPath.replace("recordsets.0.", "");
+	return collapsedPath.replace(".recordsets.0", "");
 }
 
 const summarizeDiff = (diff) => {
@@ -152,24 +171,61 @@ const filters = (diff) => {
 	}
 
 	return (
-		!diff.path.endsWith("recordsets.0")
-		&& !diff.path.endsWith("rowsAffected.0")
-		&& !diff.path.startsWith("BillingChangeEvent")
+		!diff.path.includes("recordsets")
+		&& !diff.path.includes("rowsAffected")
+		&& !diff.path.includes("BillingChangeEvent")
 	);
+}
+
+// turn ["a", "b", "c,d,e", "f"] into ["a", "b", "c", "d", "f"]
+const collapseArray = (array) => {
+	const result = [];
+
+	const tables = (typeof array === 'string') ? Array(array) : array;
+	tables.forEach(table => {
+		table.split(",").forEach(t => {
+			result.push(t)	
+		});
+	})
+
+	return result;
 }
 
 // no top-level await, so we wrap in a function
 const go = async () => {
 	try {
 		await connect();
-		const tables = await getAllTableNames();
+		const allTableNames = await getAllTableNames();
+
+		let tables = [];
+
+		if (argv.tables) {
+			collapseArray(argv.tables).forEach(t => {
+				if (allTableNames.includes(t)) {
+					tables.push(t);
+					return;
+				}
+
+				console.warn(`Table ${t} not found in database. Skipping...`);
+			})
+		}
+		else {
+			tables = allTableNames;
+		}
+
+		if (tables.length === 0) {
+			console.error("No tables to be diffed. Exiting...");
+			process.exit(0);
+		}
+
 		const before = await dbSnapshot(tables);
+
 		console.log("First db snapshot taken. Take some action in the app that will affect the database before taking the next snapshot.")
 
 		rl.question("[Enter] to take next snapshot...", async function() {
 			const after = await dbSnapshot(tables);
-			const diff = deepDiff.diff(before, after).map(summarizeDiff).filter(filters);
-			console.log(diff);
+			const diff = deepDiff.diff(before, after)?.filter(filters).map(summarizeDiff);
+			console.log(diff || "No diff!");
 
 			process.exit(0);
 		});

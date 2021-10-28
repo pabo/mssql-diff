@@ -17,15 +17,21 @@ $ npm install -g mssql-diff
 $ mssql-diff --help
 
 Options:
-      --help       Show help                                           [boolean]
-      --version    Show version number                                 [boolean]
-  -S, --server     mssql server             [string] [default: "localhost,1433"]
-  -U, --user       mssql user                                [string] [required]
-  -P, --password   mssql password                            [string] [required]
-  -d, --database   mssql database                            [string] [required]
-  -t, --tenant     tenant name                                          [string]
-  -f, --filter     filter out dupes and boilerplate    [boolean] [default: true]
-  -m, --summarize  summarize output to make it clearer [boolean] [default: true]
+      --help             Show help                                     [boolean]
+      --version          Show version number                           [boolean]
+  -S, --server           mssql server       [string] [default: "localhost,1433"]
+  -U, --user             mssql user                          [string] [required]
+  -P, --password         mssql password                      [string] [required]
+  -d, --database         mssql database                      [string] [required]
+  -t, --tenant           tenant name                                    [string]
+  -b, --tables           only snapshot these tables                     [string]
+  -o, --order-by-column  ORDER BY this column to guarantee result order which
+                         should minimize diffs. Any table not containing this
+                         column will be silently ignored. [string] [default: ""]
+  -f, --filter           filter out dupes and boilerplate
+                                                       [boolean] [default: true]
+  -m, --summarize        summarize output to make it clearer
+                                                       [boolean] [default: true]
 ```
 
 ## Example
