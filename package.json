@@ -1,6 +1,6 @@
 {
   "name": "mssql-diff",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Command line database diffing tool for MSSQL",
   "keywords": [
     "mssql",
