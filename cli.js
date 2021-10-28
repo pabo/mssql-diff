@@ -45,7 +45,6 @@ const argv = yargs(hideBin(process.argv))
   .option('order-by-column', {
     alias: 'o',
     type: 'string',
-    default: '',
     description: 'ORDER BY this column to guarantee result order which should minimize diffs. Any table not containing this column will be silently ignored.'
   })
   .option('filter', {
@@ -95,7 +94,6 @@ const tableSnapshot = async (tableName) => {
 
 	try {
 		const fullTableName = argv.tenant ? `[${argv.tenant}].[${tableName}]` : tableName;
-        	// const results = await sql.query(`select * from ${fullTableName} ORDER BY Id`);
         	const results = await sql.query(`select * from ${fullTableName} ${orderByClause}`);
 		return results;
 	}
@@ -173,11 +171,11 @@ const filters = (diff) => {
 	return (
 		!diff.path.includes("recordsets")
 		&& !diff.path.includes("rowsAffected")
-		&& !diff.path.includes("BillingChangeEvent")
+		&& !diff.path.includes("BillingChangeEvent") // TODO: make this an option
 	);
 }
 
-// turn ["a", "b", "c,d,e", "f"] into ["a", "b", "c", "d", "f"]
+// turn ["a", "b", "c,d,e", "f"] into ["a", "b", "c", "d", "e", "f"]
 const collapseArray = (array) => {
 	const result = [];
 
@@ -191,38 +189,45 @@ const collapseArray = (array) => {
 	return result;
 }
 
+const getUsableTableNames = async () => {
+	const allTableNames = await getAllTableNames();
+
+	let tables = [];
+
+	if (argv.tables) {
+		collapseArray(argv.tables).forEach(t => {
+			// verify that the asked-for tables exist in the db
+			if (allTableNames.includes(t)) {
+				tables.push(t);
+				return;
+			}
+
+			console.warn(`Table ${t} not found in database. Skipping...`);
+		})
+	}
+	else {
+		tables = allTableNames;
+	}
+
+	if (tables.length === 0) {
+		// give up if no asked-for tables exist in the db
+		console.error("No tables to be diffed. Exiting...");
+		process.exit(0);
+	}
+
+	return tables;
+}
+
 // no top-level await, so we wrap in a function
 const go = async () => {
 	try {
 		await connect();
-		const allTableNames = await getAllTableNames();
-
-		let tables = [];
-
-		if (argv.tables) {
-			collapseArray(argv.tables).forEach(t => {
-				if (allTableNames.includes(t)) {
-					tables.push(t);
-					return;
-				}
-
-				console.warn(`Table ${t} not found in database. Skipping...`);
-			})
-		}
-		else {
-			tables = allTableNames;
-		}
-
-		if (tables.length === 0) {
-			console.error("No tables to be diffed. Exiting...");
-			process.exit(0);
-		}
-
+		const tables = await getUsableTableNames();
 		const before = await dbSnapshot(tables);
 
 		console.log("First db snapshot taken. Take some action in the app that will affect the database before taking the next snapshot.")
 
-		rl.question("[Enter] to take next snapshot...", async function() {
+		rl.question("\n[Enter] to take next snapshot...\n", async function() {
 			const after = await dbSnapshot(tables);
 			const diff = deepDiff.diff(before, after)?.filter(filters).map(summarizeDiff);
 			console.log(diff || "No diff!");
